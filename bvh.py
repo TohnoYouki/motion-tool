@@ -23,12 +23,12 @@ class BVH:
     @staticmethod
     def generate(skeleton, fps):
         channels = [[] for _ in range(len(skeleton.joints))]
-        channels[0] = ['Xposition, Yposition', 'Zposition']
+        channels[0] = ['Xposition', 'Yposition', 'Zposition']
         for axis in skeleton.order:
             for channel in channels:
                 channel.append(axis.upper() + 'rotation')
         position = np.array(skeleton.root_pos)[:, np.newaxis, :]
-        rotation = np.array(skeleton.euler_angle_orientation())
+        rotation = np.array(skeleton.rotation_to_euler(skeleton.rotations))
         data = np.concatenate((position, rotation), 1)
         data = data.reshape(skeleton.frame, -1)
         return BVH((skeleton.joints, channels, skeleton.frame, fps,
@@ -60,7 +60,7 @@ class BVH:
                 names.append(match_obj.group(1))
                 offsets.append(np.zeros(3))
                 parents.append(active_joint)
-                end_offsets.append(None)
+                end_offsets.append([])
                 active_joint = len(parents) - 1
             if pattern_index == 2:
                 end_site = True
@@ -69,7 +69,7 @@ class BVH:
                 else: active_joint = parents[active_joint]
             elif pattern_index == 6:
                 offset = np.array(list(map(float, match_obj.groups())))
-                if end_site: end_offsets[active_joint] = offset
+                if end_site: end_offsets[active_joint].append(offset)
                 else: offsets[active_joint] = offset
             elif pattern_index == 7:
                 number += int(match_obj.group(1))
@@ -80,7 +80,8 @@ class BVH:
             elif pattern_index == 10:
                 fps = int(1 / float(match_obj.group(1)))
                 break
-    
+        
+        end_offsets = [np.array(x) for x in end_offsets]
         data_block = []
         assert(len(content) > index + frames)
         for i in range(index + 1, index + 1 + frames):
@@ -101,12 +102,10 @@ class BVH:
         children = []
         for i, parent in enumerate(self.parents):
             if parent == index: children.append(i)
-        if self.end_offsets[index] is not None:
-            assert(len(children) == 0)
+        for endsite in self.end_offsets[index]:
             buffer.append('\tEnd Site')
             buffer.append('\t{')
-            offset = self.end_offsets[index]
-            buffer.append('\t\tOFFSET ' + vector_to_string(offset))
+            buffer.append('\t\tOFFSET ' + vector_to_string(endsite))
             buffer.append('\t}')
         else:
             for child in children:

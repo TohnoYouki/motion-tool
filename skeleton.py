@@ -1,3 +1,4 @@
+import quaternion
 import numpy as np
 from bvh import BVH
 from scipy.spatial.transform import Rotation as R
@@ -6,56 +7,60 @@ class Skeleton(object):
     def __init__(self, joints, parents, position, orientation, 
                        offset, end_site, order = 'zyx'):
         self.order = order
+        self.frame = len(position)
         self.joints = [x for x in joints]
-        self.offset, self.parent = offset.copy(), parents.copy()
-        self.frame, self.root_pos = len(position), position.copy()
-        self.orientation = []
-        for i in range(len(orientation)):
-            rotations = self.euler_to_rotation(orientation[i])
-            self.orientation.append(rotations)
-        self.end_site = end_site
+        self.offset = np.array(offset).copy()
+        self.parent = np.array(parents).copy()
+        self.root_pos = np.array(position).copy()
+        self.rotations = self.euler_to_rotation(orientation)
+        self.end_site = [x.copy() if x is not None else None 
+                         for x in end_site]
+
+    def __children__(self):
+        children = []
+        for i in range(len(self.joints)):
+            children.append([])
+            if self.parent[i] != -1:
+                children[self.parent[i]].append(i)
+        return children
+
+    def __skeleton_copy__(self):
+        rots = self.rotation_to_euler(self.rotations)
+        return Skeleton(self.joints, self.parent, self.root_pos,
+                    rots, self.offset, self.end_site, self.order)
 
     def euler_to_rotation(self, eulers):
-        rotations = []
-        for euler in eulers:
-            euler = [euler[2], euler[1], euler[0]]
-            order = self.order[::-1]
-            rotations.append(R.from_euler(order, euler, degrees = True))
-        return rotations
+        eulers = np.array(eulers)[..., [2, 1, 0]]
+        shape, order = eulers.shape, self.order[::-1]
+        eulers = eulers.reshape(-1, 3)
+        rotations = R.from_euler(order, eulers, degrees = True)
+        quaternions = np.array(rotations.as_quat())[:, [3, 0, 1, 2]]
+        quaternions = quaternions.reshape(*shape[:-1], 4)
+        quaternions = quaternion.as_quat_array(quaternions)
+        return quaternions
 
     def rotation_to_euler(self, rotations):
-        eulers = []
-        for rotation in rotations:
-            order = self.order[::-1]
-            euler = rotation.as_euler(order, degrees = True)
-            eulers.append([euler[2], euler[1], euler[0]])
-        return eulers
-    
-    def euler_angle_orientation(self):
-        return [self.rotation_to_euler(x) for x in self.orientation]
+        quaternions = quaternion.as_float_array(rotations)
+        shape = quaternions.shape
+        quaternions = quaternions.reshape(-1, 4)[:, [1, 2, 3, 0]]
+        rotation = R.from_quat(quaternions)
+        eulers = rotation.as_euler(self.order[::-1], degrees = True)
+        return np.array(eulers)[:, [2, 1, 0]].reshape(*shape[:-1], 3)
 
-    def global_orientation(self, joint, frame):
+    def rotation_apply(self, rotations, vectors):
+        vectors = vectors[..., np.newaxis]
+        matrixs = quaternion.as_rotation_matrix(rotations)
+        return np.matmul(matrixs, vectors)[..., 0]
+
+    def position(self, joint, frames):
         joint = self.joints.index(joint)
-        rotation, joint = R.identity(), self.parent[joint]
-        while joint != -1:
-            rotation = self.orientation[frame][joint] * rotation
-            joint = self.parent[joint]
-        return rotation
-
-    def add_global_rotation(self, joint, index, global_rotation):
-        rotation = self.global_orientation(joint, index)
-        rotation = rotation.inv() * global_rotation * rotation
-        ori_rotation = self.orientation[index][joint]
-        self.orientation[index][joint] = rotation * ori_rotation
-
-    def position(self, joint, frame):
-        joint = self.joints.index(joint)
-        position = [0, 0, 0]
+        position = np.zeros((len(frames), 3))
         while self.parent[joint] != -1:
-            position = np.add(position, self.offset[joint])
+            position += self.offset[joint][np.newaxis, :]
             joint = self.parent[joint]
-            position = self.orientation[frame][joint].apply(position)
-        position = np.add(position, self.root_pos[frame])
+            rotation = self.rotations[frames, joint]
+            position = self.rotation_apply(rotation, position)
+        position += self.root_pos[frames, :]
         return np.array(position)
 
     @staticmethod
