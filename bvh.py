@@ -1,7 +1,6 @@
 import re
 import numpy as np
 from functools import reduce
-from skeleton import Skeleton
 
 def vector_to_string(vector):
     result = ''
@@ -22,23 +21,19 @@ class BVH:
         self.data_block = data_block
 
     @staticmethod
-    def generate(skeleton):
-        assert(isinstance(skeleton, Skeleton))
-        channel = []
-        return BVH((skeleton.joints, '', skeleton.frame, '',
-                    skeleton.parent, skeleton.offset, skeleton.end_site, ''))
-        '''
-        offset, orientation = [], []
-        position = [self.root_pos[i].copy() for i in range(self.number)]
-        for joint in self.joints: offset.append(self.offset[joint].copy())
-        for i in range(self.number):
-            orientation.append([])
-            for joint in self.joints:
-                euler = self.orientation[i][joint].as_euler('yxz', degrees = True)
-                orientation[-1].append([euler[2], euler[1], euler[0]])
-        end_site = [value for value in self.end_site]
-        return offset, position, orientation, end_site
-        '''
+    def generate(skeleton, fps):
+        channels = [[] for _ in range(len(skeleton.joints))]
+        channels[0] = ['Xposition, Yposition', 'Zposition']
+        for axis in skeleton.order:
+            for channel in channels:
+                channel.append(axis.upper() + 'rotation')
+        position = np.array(skeleton.root_pos)[:, np.newaxis, :]
+        rotation = np.array(skeleton.euler_angle_orientation())
+        data = np.concatenate((position, rotation), 1)
+        data = data.reshape(skeleton.frame, -1)
+        return BVH((skeleton.joints, channels, skeleton.frame, fps,
+            skeleton.parent, skeleton.offset, skeleton.end_site, data))
+
     @staticmethod
     def load(filename): 
         with open(filename, 'r') as file:
@@ -94,7 +89,7 @@ class BVH:
         return BVH((names, channels, frames, fps, np.array(parents),
                np.array(offsets), end_offsets, np.array(data_block)))
 
-    def joint_buffer(self, index):
+    def __joint_buffer__(self, index):
         buffer = []
         buffer.append('JOINT ' + self.names[index])
         buffer.append('{')
@@ -115,7 +110,7 @@ class BVH:
             buffer.append('\t}')
         else:
             for child in children:
-                child_buffer = self.joint_buffer(child)
+                child_buffer = self.__joint_buffer__(child)
                 child_buffer = ['\t' + x for x in child_buffer]
                 buffer.extend(child_buffer)
         buffer.append('}')
@@ -123,7 +118,7 @@ class BVH:
 
     def bvh_save(self, filename):
         buffer = ['HIERARCHY']
-        buffer.extend(self.joint_buffer(0))
+        buffer.extend(self.__joint_buffer__(0))
         buffer[1] = 'ROOT ' + self.names[0]
         buffer.append('MOTION')
         buffer.append('Frames: ' + str(self.frames))

@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as R
 class Skeleton(object):
     def __init__(self, joints, parents, position, orientation, 
                        offset, end_site, order = 'zyx'):
-        assert(order == 'zyx')
+        self.order = order
         self.joints = [x for x in joints]
         self.offset, self.parent = offset.copy(), parents.copy()
         self.frame, self.root_pos = len(position), position.copy()
@@ -18,6 +18,8 @@ class Skeleton(object):
     def euler_to_rotation(self, eulers):
         rotations = []
         for euler in eulers:
+            # TODO Support All the order
+            assert(self.order == 'zyx')
             euler = [euler[2], euler[1], euler[0]]
             rotations.append(R.from_euler('yxz', euler, degrees = True))
         return rotations
@@ -25,6 +27,8 @@ class Skeleton(object):
     def rotation_to_euler(self, rotations):
         eulers = []
         for rotation in rotations:
+            # TODO Support All the order
+            assert(self.order == 'zyx')
             euler = rotation.as_euler('yxz', degrees = True)
             eulers.append([euler[2], euler[1], euler[0]])
         return eulers
@@ -59,10 +63,12 @@ class Skeleton(object):
     @staticmethod
     def generate(bvh):
         assert(isinstance(bvh, BVH))
-        index, channel_datas = 0, {}
+        index, order, channel_datas = 0, '', {}
         for i, channel in enumerate(bvh.channels):
             for name in channel:
                 if channel_datas.get(name, None) is None:
+                    if 'rotation' in name: 
+                        order += name[0].lower()
                     channel_datas[name] = []
                 data = bvh.data_block[:, index]
                 channel_datas[name].append((i, data))
@@ -70,8 +76,8 @@ class Skeleton(object):
         names = ['Xposition', 'Yposition', 'Zposition']
         pos = [channel_datas[x][0][1][:, np.newaxis] for x in names]
         positions = np.concatenate((pos[0], pos[1], pos[2]), 1)
-        names = ['Zrotation', 'Yrotation', 'Xrotation']
+        names = [axis.upper() + 'rotation' for axis in order]
         rots = [[x[1] for x in channel_datas[name]] for name in names]
         rotations = np.array(rots).transpose(2, 1, 0)
         return Skeleton(bvh.names, bvh.parents, positions, rotations,
-                        bvh.offsets, bvh.end_offsets, 'zyx')
+                        bvh.offsets, bvh.end_offsets, order)
