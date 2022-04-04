@@ -18,18 +18,16 @@ class Skeleton(object):
     def euler_to_rotation(self, eulers):
         rotations = []
         for euler in eulers:
-            # TODO Support All the order
-            assert(self.order == 'zyx')
             euler = [euler[2], euler[1], euler[0]]
-            rotations.append(R.from_euler('yxz', euler, degrees = True))
+            order = self.order[::-1]
+            rotations.append(R.from_euler(order, euler, degrees = True))
         return rotations
 
     def rotation_to_euler(self, rotations):
         eulers = []
         for rotation in rotations:
-            # TODO Support All the order
-            assert(self.order == 'zyx')
-            euler = rotation.as_euler('yxz', degrees = True)
+            order = self.order[::-1]
+            euler = rotation.as_euler(order, degrees = True)
             eulers.append([euler[2], euler[1], euler[0]])
         return eulers
     
