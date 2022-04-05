@@ -3,7 +3,7 @@ import numpy as np
 from bvh import BVH
 from scipy.spatial.transform import Rotation as R
 
-class Skeleton(object):
+class Skeleton:
     def __init__(self, joints, parents, position, orientation, 
                        offset, end_site, order = 'zyx'):
         self.order = order
@@ -16,6 +16,11 @@ class Skeleton(object):
         self.end_site = [x.copy() if x is not None else None 
                          for x in end_site]
 
+    def __skeleton_copy__(self):
+        rots = self.rotation_to_euler(self.rotations)
+        return Skeleton(self.joints, self.parent, self.root_pos,
+                    rots, self.offset, self.end_site, self.order)
+
     def __children__(self):
         children = []
         for i in range(len(self.joints)):
@@ -23,11 +28,6 @@ class Skeleton(object):
             if self.parent[i] != -1:
                 children[self.parent[i]].append(i)
         return children
-
-    def __skeleton_copy__(self):
-        rots = self.rotation_to_euler(self.rotations)
-        return Skeleton(self.joints, self.parent, self.root_pos,
-                    rots, self.offset, self.end_site, self.order)
 
     def euler_to_rotation(self, eulers):
         eulers = np.array(eulers)[..., [2, 1, 0]]
@@ -52,8 +52,17 @@ class Skeleton(object):
         matrixs = quaternion.as_rotation_matrix(rotations)
         return np.matmul(matrixs, vectors)[..., 0]
 
+    def all_position(self):
+        frames = np.arange(self.frame)
+        for i, joint in enumerate(self.joints):
+            pos = self.position(joint, frames)[:, np.newaxis, :]
+            if i == 0: result = pos
+            else: result = np.concatenate((result, pos), 1)
+        return result
+
     def position(self, joint, frames):
-        joint = self.joints.index(joint)
+        if isinstance(joint, str):
+            joint = self.joints.index(joint)
         position = np.zeros((len(frames), 3))
         while self.parent[joint] != -1:
             position += self.offset[joint][np.newaxis, :]
@@ -70,8 +79,7 @@ class Skeleton(object):
         for i, channel in enumerate(bvh.channels):
             for name in channel:
                 if channel_datas.get(name, None) is None:
-                    if 'rotation' in name: 
-                        order += name[0].lower()
+                    if 'rotation' in name: order += name[0].lower()
                     channel_datas[name] = []
                 data = bvh.data_block[:, index]
                 channel_datas[name].append((i, data))
