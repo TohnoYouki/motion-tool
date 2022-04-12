@@ -8,18 +8,22 @@ class Skeleton:
                        offset, end_site, order = 'zyx'):
         self.order = order
         self.frame = len(position)
-        self.joints = [x for x in joints]
-        self.offset = np.array(offset).copy()
-        self.parent = np.array(parents).copy()
-        self.root_pos = np.array(position).copy()
-        self.rotations = self.euler_to_rotation(orientation)
-        self.end_site = [x.copy() if x is not None else None 
-                         for x in end_site]
+        self.joints = joints
+        self.offset = offset
+        self.parent = parents
+        self.root_pos = position
+        self.rotations = orientation
+        if self.rotations.shape == 3:
+            self.rotations = self.euler_to_rotation(orientation)
+        self.end_site = end_site
 
-    def __skeleton_copy__(self):
-        rots = self.rotation_to_euler(self.rotations)
-        return Skeleton(self.joints, self.parent, self.root_pos,
-                    rots, self.offset, self.end_site, self.order)
+    def __getitem__(self, item):
+        assert(isinstance(item, slice))
+        root_pos = self.root_pos[item].copy()
+        rotations = self.rotations[item].copy()
+        assert(len(root_pos) > 0)
+        return Skeleton(self.joints, self.parent, root_pos,
+                rotations, self.offset, self.end_site, self.order)
 
     def __children__(self):
         children = []
@@ -47,7 +51,7 @@ class Skeleton:
         eulers = rotation.as_euler(self.order[::-1], degrees = True)
         return np.array(eulers)[:, [2, 1, 0]].reshape(*shape[:-1], 3)
 
-    def rotation_apply(self, rotations, vectors):
+    def __rotation_apply__(self, rotations, vectors):
         vectors = vectors[..., np.newaxis]
         matrixs = quaternion.as_rotation_matrix(rotations)
         return np.matmul(matrixs, vectors)[..., 0]
@@ -68,7 +72,7 @@ class Skeleton:
             position += self.offset[joint][np.newaxis, :]
             joint = self.parent[joint]
             rotation = self.rotations[frames, joint]
-            position = self.rotation_apply(rotation, position)
+            position = self.__rotation_apply__(rotation, position)
         position += self.root_pos[frames, :]
         return np.array(position)
 
@@ -90,5 +94,10 @@ class Skeleton:
         names = [axis.upper() + 'rotation' for axis in order]
         rots = [[x[1] for x in channel_datas[name]] for name in names]
         rotations = np.array(rots).transpose(2, 1, 0)
-        return Skeleton(bvh.names, bvh.parents, positions, rotations,
-                        bvh.offsets, bvh.end_offsets, order)
+        joints = [x for x in bvh.names]
+        parents = np.array(bvh.parents).copy()
+        offsets = np.array(bvh.offsets).copy()
+        endsite = [x.copy() if x is not None else None 
+                   for x in bvh.end_offsets]
+        return Skeleton(joints, parents, positions, 
+                        rotations, offsets, endsite, order)
