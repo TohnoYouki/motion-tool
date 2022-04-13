@@ -10,36 +10,36 @@ class SkeletonSimplify:
 
     def __child_num__(self, joint):
         children = self.skeleton.__children__()
-        end_site = self.skeleton.end_site
+        end_site = self.skeleton.end_sites
         return len(children[joint]) + len(end_site[joint])
 
     def __add_endsite__(self):
         skeleton = self.skeleton
         childrens = skeleton.__children__()
         for i in range(len(skeleton.joints)):
-            if len(childrens[i]) == 0 and len(skeleton.end_site[i]) == 0:
-                skeleton.end_site[i] = np.zeros((1, 3))
+            if len(childrens[i]) == 0 and len(skeleton.end_sites[i]) == 0:
+                skeleton.end_sites[i] = np.zeros((1, 3))
 
     def __remove_redundant_endsite__(self):
         change, skeleton = False, self.skeleton
         for i in range(len(skeleton.joints)):
-            if len(skeleton.end_site[i]) <= 0: continue
-            endsite = skeleton.end_site[i]
+            if len(skeleton.end_sites[i]) <= 0: continue
+            endsite = skeleton.end_sites[i]
             zero_offset = np.sum(endsite ** 2, -1) > self.threshold
-            skeleton.end_site[i] = endsite[zero_offset]
+            skeleton.end_sites[i] = endsite[zero_offset]
             if not np.all(zero_offset): change = True
         return change
 
     def __remove_redundant_joint__(self, joint):
         skeleton = self.skeleton
-        for i in range(len(skeleton.parent)):
-            if skeleton.parent[i] > joint:
-                skeleton.parent[i] -= 1
+        for i in range(len(skeleton.parents)):
+            if skeleton.parents[i] > joint:
+                skeleton.parents[i] -= 1
         del skeleton.joints[joint]
-        skeleton.offset = np.delete(skeleton.offset, joint, 0)    
-        skeleton.parent = np.delete(skeleton.parent, joint, 0)
+        skeleton.offsets = np.delete(skeleton.offsets, joint, 0)    
+        skeleton.parents = np.delete(skeleton.parents, joint, 0)
         skeleton.rotations = np.delete(skeleton.rotations, joint, 1)
-        del skeleton.end_site[joint]
+        del skeleton.end_sites[joint]
 
     def __collapse_redundant_joint__(self, i):
         skeleton = self.skeleton

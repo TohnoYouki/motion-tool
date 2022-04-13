@@ -1,11 +1,7 @@
 import re
 import numpy as np
 from functools import reduce
-
-def vector_to_string(vector):
-    result = ''
-    for value in vector: result += str(value) + ' '
-    return result[:-1] 
+from utils import vector_to_string, rotation_to_euler
 
 class BVH:
     def __init__(self, data):
@@ -21,18 +17,19 @@ class BVH:
         self.data_block = data_block
 
     @staticmethod
-    def generate(skeleton, fps):
+    def generate(motion, fps):
+        skeleton = motion.skeleton
         channels = [[] for _ in range(len(skeleton.joints))]
         channels[0] = ['Xposition', 'Yposition', 'Zposition']
         for axis in skeleton.order:
             for channel in channels:
                 channel.append(axis.upper() + 'rotation')
-        position = np.array(skeleton.root_pos)[:, np.newaxis, :]
-        rotation = np.array(skeleton.rotation_to_euler(skeleton.rotations))
+        position = np.array(motion.root_pos)[:, np.newaxis, :]
+        rotation = rotation_to_euler(motion.rotations, skeleton.order)
         data = np.concatenate((position, rotation), 1)
-        data = data.reshape(skeleton.frame, -1)
-        return BVH((skeleton.joints, channels, skeleton.frame, fps,
-            skeleton.parent, skeleton.offset, skeleton.end_site, data))
+        data = data.reshape(motion.frame, -1)
+        return BVH((skeleton.joints, channels, motion.frame, fps,
+            skeleton.parents, skeleton.offsets, skeleton.end_sites, data))
 
     @staticmethod
     def load(filename): 
