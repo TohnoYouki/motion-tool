@@ -5,6 +5,9 @@ from motionclip import MotionClip
 class Transition:
     @staticmethod
     def __clerp_position__(position_a, position_b, factors):
+        position_a = position_a[np.newaxis, :]
+        position_b = position_b[np.newaxis, :]
+        factors = factors[:, np.newaxis]
         return position_a * (1 - factors) + position_b * factors
 
     @staticmethod
@@ -15,7 +18,7 @@ class Transition:
     @staticmethod
     def __slerp_transition__(clip_a, clip_b, tran_num):
         rotation = []
-        factors = [i / (tran_num + 1) for i in range(tran_num + 2)]
+        factors = np.array([i / (tran_num + 1) for i in range(tran_num + 2)])
         params = (clip_a.root_pos[-1], clip_b.root_pos[0], factors)
         root_pos = Transition.__clerp_position__(*params)[1:-1]
         for i in range(len(clip_a.rotations[-1])):
