@@ -1,14 +1,25 @@
 import numpy as np
 from bvh import BVH
-from utils import rotation_apply
+from utils import vequal
 
 class Skeleton:
+    epsilon = 1e-8
+
     def __init__(self, joints, parents, offsets, end_sites, order = 'zyx'):
         self.order = order
         self.joints = [x for x in joints]
         self.offsets = offsets.copy()
         self.parents = parents.copy()
         self.end_sites = [x.copy() for x in end_sites]
+
+    def copy(self):
+        return Skeleton(self.joints, self.parents, 
+               self.offsets, self.offsets, self.order)
+
+    def __child_num__(self, joint):
+        children = self.__children__()
+        end_site = self.end_sites
+        return len(children[joint]) + len(end_site[joint])
 
     def __children__(self):
         children = []
@@ -17,20 +28,6 @@ class Skeleton:
             if self.parents[i] != -1:
                 children[self.parents[i]].append(i)
         return children
-
-    def position(self, joint, root_pos, rotations):
-        frames = len(root_pos)
-        if isinstance(joint, str):
-            joint = self.joints.index(joint)
-        assert(joint >= 0 and joint < len(self.joints))
-        position = np.zeros((len(frames), 3))
-        while self.parents[joint] != -1:
-            position += self.offsets[joint][np.newaxis, :]
-            joint = self.parents[joint]
-            rotation = rotations[joint]
-            position = rotation_apply(rotation, position)
-        position += root_pos
-        return np.array(position)
 
     @staticmethod
     def generate(bvh):
@@ -45,3 +42,17 @@ class Skeleton:
         endsite = [x.copy() if x is not None else None 
                    for x in bvh.end_offsets]
         return Skeleton(joints, parents, offsets, endsite, order)
+
+    def __eq__(self, other):
+        if self is other: return True
+        if self.order != other.order: return False
+        if len(self.joints) != len(other.joints): return False
+        if any([self.joints[i] != other.joints[i] 
+                for i in range(len(self.joints))]): return False
+        if not vequal(self.offsets, other.offsets, self.epsilon) or \
+           not vequal(self.parents, other.parents, self.epsilon): return False
+        if len(self.end_sites) != len(other.end_sites): return False
+        for i, endsite in enumerate(self.end_sites):
+            oendsite = other.end_sites[i]
+            if not vequal(endsite, oendsite, self.epsilon): return False
+        return True
