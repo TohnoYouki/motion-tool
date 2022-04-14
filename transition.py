@@ -32,6 +32,5 @@ class Transition:
     def __slerp_concat__(clip_a, clip_b, window_a, window_b):
         window =  window_a + window_b
         src_clip, dst_clip = clip_a[:-window_a], clip_b[window_b:]
-        params = (clip_a[-window_a:], clip_b[:window_b], window - 2)
-        tran_clip = Transition.__slerp_transition__(*params)
-        return MotionClip.concat((src_clip, tran_clip, dst_clip))
+        params = (src_clip, dst_clip, window)
+        return Transition.__slerp_transition__(*params)
