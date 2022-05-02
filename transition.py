@@ -34,3 +34,26 @@ class Transition:
         src_clip, dst_clip = clip_a[:-window_a], clip_b[window_b:]
         params = (src_clip, dst_clip, window)
         return Transition.__slerp_transition__(*params)
+
+    @staticmethod
+    def __temporal_convolution__(sequence, weights):
+        first, last = sequence[0:1], sequence[-1:]
+        first = np.repeat(first, len(weights), 0)
+        last = np.repeat(last, len(weights), 0)
+        result = np.zeros(sequence.shape)
+        sequence = np.concatenate((first, sequence, last), 0)
+        for index, weight in enumerate(weights):
+            start = index - len(weights) // 2 + len(weights)
+            end = start + len(result)
+            result += weight * sequence[start:end]
+        return result
+
+    @staticmethod
+    def __smooth_clip__(clip, weights):
+        assert(isinstance(clip, MotionClip) and len(clip.rotations) > 0)
+        rotation = quater.as_float_array(clip.rotations)
+        rotation = Transition.__temporal_convolution__(rotation, weights)
+        norm = np.linalg.norm(rotation, axis = -1, keepdims = True)
+        rotation = rotation / norm
+        clip.rotations = quater.from_float_array(rotation)
+        clip.root_pos = Transition.__temporal_convolution__(clip.root_pos, weights)
