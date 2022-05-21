@@ -1,5 +1,5 @@
 import numpy as np
-from skeleton.bvh import BVH
+from .bvh import BVH
 from utils.utils import vequal
 
 class Skeleton:

@@ -1,8 +1,8 @@
 import quaternion
 import numpy as np
-from skeleton.bvh import BVH
+from .bvh import BVH
+from .skeleton import Skeleton
 from utils.convert import Convert
-from skeleton.skeleton import Skeleton
 
 class MotionClip:
     def __init__(self, skeleton, positions, rotations):
